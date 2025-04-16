@@ -12,7 +12,8 @@ class CricketModelPipeline:
         self.win_model = None
         self.pressure_model = None
         self.feature_names = None
-        self.scaler = None
+        self.win_scaler = None
+        self.pressure_scaler = None
         self.load_models()
     
     def load_models(self):
@@ -21,7 +22,8 @@ class CricketModelPipeline:
             self.win_model = joblib.load(os.path.join(self.model_dir, 'win_model.pkl'))
             self.pressure_model = joblib.load(os.path.join(self.model_dir, 'pressure_model.pkl'))
             self.feature_names = joblib.load(os.path.join(self.model_dir, 'feature_names.pkl'))
-            self.scaler = joblib.load(os.path.join(self.model_dir, 'scaler.pkl'))
+            self.win_scaler = joblib.load(os.path.join(self.model_dir, 'win_scaler.pkl'))
+            self.pressure_scaler = joblib.load(os.path.join(self.model_dir, 'pressure_scaler.pkl'))
             print("Models loaded successfully")
         except Exception as e:
             print(f"Error loading models: {e}")
@@ -113,24 +115,30 @@ class CricketModelPipeline:
         Returns:
         dict: Dictionary with win probability and pressure score
         """
-        if not all([self.win_model, self.pressure_model, self.feature_names, self.scaler]):
-            return {"error": "Models not loaded properly"}
+        if not all([self.win_model, self.pressure_model, self.feature_names, self.win_scaler, self.pressure_scaler]):
+            return {"error": "Models not loaded properly", 
+                    "team1_win_probability": 0.5,  # Default value to avoid KeyError
+                    "team2_win_probability": 0.5,
+                    "pressure_score": 50,
+                    "required_run_rate": 0,
+                    "runs_needed": 0,
+                    "balls_remaining": 0}
         
         # Process match data
         processed_data = self.process_match_data(match_data)
         
         # Prepare features for win model
         win_features_df = pd.DataFrame([processed_data['win_features']])
-        win_features_array = win_features_df[self.feature_names['win']].values
-        win_features_scaled = self.scaler.transform(win_features_array)
+        # Scale directly using the DataFrame to preserve feature names
+        win_features_scaled = self.win_scaler.transform(win_features_df[self.feature_names['win']])
         
         # Predict win probability
         win_prob = self.win_model.predict_proba(win_features_scaled)[0][1]
         
         # Prepare features for pressure model
         pressure_features_df = pd.DataFrame([processed_data['pressure_features']])
-        pressure_features_array = pressure_features_df[self.feature_names['pressure']].values
-        pressure_features_scaled = self.scaler.transform(pressure_features_array)
+        # Scale directly using the DataFrame to preserve feature names
+        pressure_features_scaled = self.pressure_scaler.transform(pressure_features_df[self.feature_names['pressure']])
         
         # Predict pressure score
         pressure_score = self.pressure_model.predict(pressure_features_scaled)[0]
